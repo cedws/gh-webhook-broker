@@ -14,13 +14,13 @@ import (
 func TestNewIPCServer_RejectsActiveSocket(t *testing.T) {
 	path := testSocketPath(t)
 
-	server, err := NewIPCServer(path, &Registry{}, testLogger())
+	server, err := NewUnixIPCServer(path, &Registry{}, testLogger())
 	assert.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, server.Close())
 	})
 
-	other, err := NewIPCServer(path, &Registry{}, testLogger())
+	other, err := NewUnixIPCServer(path, &Registry{}, testLogger())
 	assert.Error(t, err)
 	assert.True(t, other == nil)
 }
@@ -32,7 +32,7 @@ func TestNewIPCServer_ReusesStaleSocket(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, listener.Close())
 
-	server, err := NewIPCServer(path, &Registry{}, testLogger())
+	server, err := NewUnixIPCServer(path, &Registry{}, testLogger())
 	assert.NoError(t, err)
 	assert.NoError(t, server.Close())
 }

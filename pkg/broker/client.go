@@ -19,16 +19,29 @@ type readResult struct {
 	err error
 }
 
-func DialClient(socketPath string) (*Client, error) {
-	conn, err := net.Dial("unix", socketPath)
+func DialClient(addr string) (*Client, error) {
+	network, target := parseAddr(addr)
+
+	conn, err := net.Dial(network, target)
 	if err != nil {
-		return nil, fmt.Errorf("dialing broker socket %s: %w", socketPath, err)
+		return nil, fmt.Errorf("dialing broker %s: %w", addr, err)
 	}
 
 	return &Client{
 		conn: conn,
 		br:   bufio.NewReader(conn),
 	}, nil
+}
+
+func parseAddr(addr string) (network, target string) {
+	switch {
+	case strings.HasPrefix(addr, "tcp://"):
+		return "tcp", strings.TrimPrefix(addr, "tcp://")
+	case strings.HasPrefix(addr, "unix://"):
+		return "unix", strings.TrimPrefix(addr, "unix://")
+	default:
+		return "unix", addr
+	}
 }
 
 func (c *Client) Subscribe(req SubscribeRequest) error {

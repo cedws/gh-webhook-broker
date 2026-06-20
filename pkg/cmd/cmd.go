@@ -32,9 +32,9 @@ type cli struct {
 }
 
 type daemonCmd struct {
-	GitHubHost string `name:"github-host" short:"H" default:"github.com" env:"GH_HOST" help:"GitHub host name."`
-	Socket     string `name:"socket" short:"s" help:"Path to the broker Unix socket. Defaults to $XDG_RUNTIME_DIR/gh-webhook-broker.sock."`
-	Secret     string `name:"secret" short:"S" env:"GH_WEBHOOK_SECRET" help:"Webhook secret for incoming events."`
+	GitHubHost string   `name:"github-host" short:"H" default:"github.com" env:"GH_HOST" help:"GitHub host name."`
+	Socket     []string `name:"socket" short:"s" help:"Listen address (repeatable). Accepts unix:///path/to/sock or tcp://host:port. Defaults to the Unix socket at $XDG_RUNTIME_DIR/gh-webhook-broker.sock."`
+	Secret     string   `name:"secret" short:"S" env:"GH_WEBHOOK_SECRET" help:"Webhook secret for incoming events."`
 }
 
 type waitCmd struct {
@@ -42,7 +42,7 @@ type waitCmd struct {
 	Repo   []string `name:"repo" short:"R" help:"Restrict to a repo (owner/repo). Repeatable."`
 	Org    []string `name:"org" short:"O" help:"Restrict to an org. Repeatable."`
 	Match  string   `name:"match" short:"M" help:"CEL expression to filter events."`
-	Socket string   `name:"socket" short:"s" help:"Path to the broker Unix socket."`
+	Addr   string   `name:"addr" short:"a" help:"Broker address. Unix socket path (default) or tcp://host:port."`
 }
 
 type subscribeCmd struct {
@@ -50,7 +50,7 @@ type subscribeCmd struct {
 	Repo   []string `name:"repo" short:"R" help:"Restrict to a repo (owner/repo). Repeatable."`
 	Org    []string `name:"org" short:"O" help:"Restrict to an org. Repeatable."`
 	Match  string   `name:"match" short:"M" help:"CEL expression to filter events."`
-	Socket string   `name:"socket" short:"s" help:"Path to the broker Unix socket."`
+	Addr   string   `name:"addr" short:"a" help:"Broker address. Unix socket path (default) or tcp://host:port."`
 }
 
 type versionCmd struct{}
@@ -61,7 +61,7 @@ func (c *daemonCmd) Run(global *cli) error {
 
 	cfg := broker.Config{
 		GitHubHost: c.GitHubHost,
-		SocketPath: c.Socket,
+		Addrs:      c.Socket,
 		Secret:     c.Secret,
 		Debug:      global.Debug,
 	}
@@ -69,11 +69,11 @@ func (c *daemonCmd) Run(global *cli) error {
 }
 
 func (c *waitCmd) Run(global *cli) error {
-	return runClient(c.Socket, c.Repo, c.Org, c.Events, c.Match, clientModeWait)
+	return runClient(c.Addr, c.Repo, c.Org, c.Events, c.Match, clientModeWait)
 }
 
 func (c *subscribeCmd) Run(global *cli) error {
-	return runClient(c.Socket, c.Repo, c.Org, c.Events, c.Match, clientModeSubscribe)
+	return runClient(c.Addr, c.Repo, c.Org, c.Events, c.Match, clientModeSubscribe)
 }
 
 func (c *versionCmd) Run(global *cli) error {
@@ -88,8 +88,8 @@ const (
 	clientModeSubscribe
 )
 
-func runClient(socketPath string, repos, orgs []string, events []string, match string, mode clientMode) error {
-	socketPath, err := resolveSocketPath(socketPath)
+func runClient(addr string, repos, orgs []string, events []string, match string, mode clientMode) error {
+	addr, err := resolveAddr(addr)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func runClient(socketPath string, repos, orgs []string, events []string, match s
 		return err
 	}
 
-	client, err := broker.DialClient(socketPath)
+	client, err := broker.DialClient(addr)
 	if err != nil {
 		return err
 	}
@@ -112,9 +112,9 @@ func runClient(socketPath string, repos, orgs []string, events []string, match s
 	return streamEvents(client, mode)
 }
 
-func resolveSocketPath(socketPath string) (string, error) {
-	if socketPath != "" {
-		return socketPath, nil
+func resolveAddr(addr string) (string, error) {
+	if addr != "" {
+		return addr, nil
 	}
 
 	p, err := broker.DefaultSocketPath()

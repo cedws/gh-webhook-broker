@@ -29,6 +29,16 @@ gh-webhook-broker subscribe --event=push --repo=cedws/gh-webhook-broker
 gh-webhook-broker daemon --debug
 ```
 
+By default the broker listens on a Unix socket at `$XDG_RUNTIME_DIR/gh-webhook-broker.sock`. You can override the listen address with `--socket` (repeatable), accepting `unix:///path/to/sock` or `tcp://host:port`:
+
+```fish
+# TCP only
+gh-webhook-broker daemon --socket tcp://127.0.0.1:8080
+
+# Both Unix socket and TCP
+gh-webhook-broker daemon --socket unix:///tmp/ghwb.sock --socket tcp://127.0.0.1:8080
+```
+
 ### Wait for a specific event
 
 Block until a pull request is opened on a repo:
@@ -53,13 +63,21 @@ Stream all push events from an org:
 gh-webhook-subscribe --org=acme-corp --event=push
 ```
 
+Connect to a remote broker over TCP:
+
+```fish
+gh-webhook-subscribe --addr tcp://127.0.0.1:8080 --repo=cedws/iapc --event=push
+```
+
 ### Flags
 
 ```
-gh-webhook-wait --event=TYPE [--event=...] [--repo=owner/repo] [--org=name] [--match=CEL] [--socket=PATH]
-gh-webhook-subscribe --event=TYPE [--event=...] [--repo=owner/repo] [--org=name] [--match=CEL] [--socket=PATH]
-gh-webhook-broker daemon [--github-host=github.com] [--socket=PATH] [--secret=SECRET] [--debug]
+gh-webhook-broker daemon [--github-host=github.com] [--socket=ADDR] [--secret=SECRET] [--debug]
+gh-webhook-wait      --event=TYPE [--event=...] [--repo=owner/repo] [--org=name] [--match=CEL] [--addr=ADDR]
+gh-webhook-subscribe --event=TYPE [--event=...] [--repo=owner/repo] [--org=name] [--match=CEL] [--addr=ADDR]
 ```
+
+`--socket` (daemon) and `--addr` (wait/subscribe) accept `unix:///path/to/sock`, `tcp://host:port`, or a bare path (treated as Unix). Both `--repo` and `--org` are repeatable to subscribe to multiple scopes at once.
 
 ### CEL matching
 
@@ -82,6 +100,16 @@ Examples:
 # Issue labeled "bug"
 --match 'event.action == "labeled" && event.label.name == "bug"'
 ```
+
+### Output format
+
+`gh-webhook-subscribe` prints one JSON object per line, each containing the event type, scope, and payload:
+
+```json
+{"type":"push","scope":{"kind":"repo","name":"cedws/iapc"},"payload":{"ref":"refs/heads/main",...}}
+```
+
+`gh-webhook-wait` exits silently on the first match.
 
 ## How it works
 

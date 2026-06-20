@@ -30,13 +30,13 @@ func DefaultSocketPath() (string, error) {
 }
 
 type IPCServer struct {
-	path     string
+	addr     string
 	listener net.Listener
 	registry *Registry
 	log      *slog.Logger
 }
 
-func NewIPCServer(path string, registry *Registry, log *slog.Logger) (*IPCServer, error) {
+func NewUnixIPCServer(path string, registry *Registry, log *slog.Logger) (*IPCServer, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("creating socket directory: %w", err)
 	}
@@ -52,14 +52,28 @@ func NewIPCServer(path string, registry *Registry, log *slog.Logger) (*IPCServer
 	}
 
 	return &IPCServer{
-		path:     path,
+		addr:     "unix://" + path,
 		listener: l,
 		registry: registry,
 		log:      log,
 	}, nil
 }
 
-func (s *IPCServer) Path() string { return s.path }
+func NewTCPIPCServer(addr string, registry *Registry, log *slog.Logger) (*IPCServer, error) {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("listening on %s: %w", addr, err)
+	}
+
+	return &IPCServer{
+		addr:     "tcp://" + l.Addr().String(),
+		listener: l,
+		registry: registry,
+		log:      log,
+	}, nil
+}
+
+func (s *IPCServer) Addr() string { return s.addr }
 
 func (s *IPCServer) Serve(ctx context.Context) error {
 	go func() {
@@ -81,7 +95,9 @@ func (s *IPCServer) Serve(ctx context.Context) error {
 }
 
 func (s *IPCServer) Close() error {
-	_ = os.Remove(s.path)
+	if strings.HasPrefix(s.addr, "unix://") {
+		_ = os.Remove(strings.TrimPrefix(s.addr, "unix://"))
+	}
 	return s.listener.Close()
 }
 
@@ -152,7 +168,6 @@ func (s *IPCServer) handleConn(ctx context.Context, conn net.Conn) {
 		_ = s.registry.RemoveSubscriber(context.Background(), sub)
 	}()
 
-	// Block until the client disconnects or the server shuts down.
 	go func() {
 		<-ctx.Done()
 		_ = conn.Close()
