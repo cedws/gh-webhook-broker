@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -173,11 +174,7 @@ func (s *IPCServer) handleConn(ctx context.Context, conn net.Conn) {
 		_ = conn.Close()
 	}()
 
-	for {
-		if _, err := br.ReadByte(); err != nil {
-			return
-		}
-	}
+	_, _ = io.Copy(io.Discard, conn)
 }
 
 func (s *IPCServer) readSubscribeRequest(br *bufio.Reader) (*SubscribeRequest, error) {

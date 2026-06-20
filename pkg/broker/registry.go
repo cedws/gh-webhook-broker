@@ -238,7 +238,7 @@ func (r *Registry) teardown(mh *managedHook) error {
 }
 
 func (r *Registry) Dispatch(ev Event) {
-	for _, sub := range r.subscribersFor(nil) {
+	for _, sub := range r.subscribersFor(&ev.Scope) {
 		if err := sub.Deliver(ev); err != nil {
 			r.log.Warn("error delivering event to subscriber", "error", err)
 		}

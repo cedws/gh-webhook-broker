@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -133,10 +134,11 @@ func (r *WebsocketReader) dial(ctx context.Context) (*websocket.Conn, error) {
 }
 
 func sanitise(s string) string {
-	for i := range s {
-		if s[i] == '\n' || s[i] == '\r' {
-			return s[:i]
-		}
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	if i := strings.IndexByte(s, '\r'); i >= 0 {
+		return s[:i]
 	}
 	return s
 }
