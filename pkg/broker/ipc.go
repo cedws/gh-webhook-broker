@@ -96,8 +96,8 @@ func (s *IPCServer) Serve(ctx context.Context) error {
 }
 
 func (s *IPCServer) Close() error {
-	if strings.HasPrefix(s.addr, "unix://") {
-		_ = os.Remove(strings.TrimPrefix(s.addr, "unix://"))
+	if after, ok := strings.CutPrefix(s.addr, "unix://"); ok {
+		_ = os.Remove(after)
 	}
 	return s.listener.Close()
 }

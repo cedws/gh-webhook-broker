@@ -134,11 +134,11 @@ func (r *WebsocketReader) dial(ctx context.Context) (*websocket.Conn, error) {
 }
 
 func sanitise(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
+	if before, _, ok := strings.Cut(s, "\n"); ok {
+		return before
 	}
-	if i := strings.IndexByte(s, '\r'); i >= 0 {
-		return s[:i]
+	if before, _, ok := strings.Cut(s, "\r"); ok {
+		return before
 	}
 	return s
 }
