@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+checksum:
+  name_template: "checksums.txt"
+
+builds:
+  - main: .
+    binary: gh-webhook-broker
+    flags:
+      - -trimpath
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/cedws/gh-webhook-broker/pkg/version.version={{ .Version }}
+      - -X github.com/cedws/gh-webhook-broker/pkg/version.commit={{ .Commit }}
+      - -X github.com/cedws/gh-webhook-broker/pkg/version.date={{ .Date }}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+
+dockers_v2:
+  - id: dockers_v2
+    images:
+      - 'ghcr.io/{{ envOrDefault "GITHUB_REPOSITORY_OWNER" "cedws" }}/{{ .ProjectName }}'
+    tags:
+      - "{{ .Tag }}"
+      - "v{{ .Major }}"
+      - "latest"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    build_args:
+      PROJECT_NAME: "{{ .ProjectName }}"
+    flags:
+      - "--pull"
+
+docker_signs:
+  - ids:
+      - dockers_v2
+    cmd: cosign
+    args:
+      - "sign"
+      - "--yes"
+      - "${artifact}"
+
+scoops:
+  - skip_upload: '{{ eq (envOrDefault "REPO_VISIBILITY" "private") "private" }}'
+    repository:
+      name: scoop-bucket
+      owner: '{{ envOrDefault "GITHUB_REPOSITORY_OWNER" "cedws" }}'
+      token: "{{ .Env.GORELEASER_PUSH_TOKEN }}"
+
+homebrew_casks:
+  - skip_upload: '{{ eq (envOrDefault "REPO_VISIBILITY" "private") "private" }}'
+    repository:
+      name: homebrew-tap
+      owner: '{{ envOrDefault "GITHUB_REPOSITORY_OWNER" "cedws" }}'
+      token: "{{ .Env.GORELEASER_PUSH_TOKEN }}"
+    binaries:
+      - gh-webhook-broker
+    custom_block: |
+      binary "gh-webhook-broker", target: "gh-webhook-wait"
+      binary "gh-webhook-broker", target: "gh-webhook-subscribe"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/gh-webhook-broker"]
+          end
+
+changelog:
+  use: github
