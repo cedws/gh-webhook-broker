@@ -11,8 +11,8 @@ import (
 	"syscall"
 
 	"github.com/alecthomas/kong"
-	"github.com/cedws/gh-webhook-broker/pkg/broker"
-	"github.com/cedws/gh-webhook-broker/pkg/version"
+	"go.cedwards.xyz/gh-webhook-broker/pkg/broker"
+	"go.cedwards.xyz/gh-webhook-broker/pkg/version"
 )
 
 type mode string

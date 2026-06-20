@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/cedws/gh-webhook-broker/pkg/cmd"
+	"go.cedwards.xyz/gh-webhook-broker/pkg/cmd"
 )
 
 func main() {

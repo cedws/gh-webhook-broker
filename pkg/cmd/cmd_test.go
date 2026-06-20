@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
-	"github.com/cedws/gh-webhook-broker/pkg/broker"
+	"go.cedwards.xyz/gh-webhook-broker/pkg/broker"
 )
 
 func TestBuildSubscribeRequest_MultipleReposAndOrgs(t *testing.T) {

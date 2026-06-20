@@ -1,4 +1,4 @@
-module github.com/cedws/gh-webhook-broker
+module go.cedwards.xyz/gh-webhook-broker
 
 go 1.26.1
 
