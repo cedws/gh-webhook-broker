@@ -1,11 +1,13 @@
 package version
 
+import "fmt"
+
 var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
 )
 
-func Version() string { return version }
-func Commit() string  { return commit }
-func Date() string    { return date }
+func String() string {
+	return fmt.Sprintf("gh-webhook-broker %s (commit: %s, built: %s)", version, commit, date)
+}

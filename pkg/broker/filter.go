@@ -8,11 +8,11 @@ import (
 	"github.com/google/cel-go/cel"
 )
 
-type Filter struct {
+type filter struct {
 	prog cel.Program
 }
 
-func CompileFilter(expr string) (*Filter, error) {
+func compileFilter(expr string) (*filter, error) {
 	if expr == "" {
 		return nil, nil
 	}
@@ -33,10 +33,10 @@ func CompileFilter(expr string) (*Filter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("building CEL program: %w", err)
 	}
-	return &Filter{prog: prog}, nil
+	return &filter{prog: prog}, nil
 }
 
-func (f *Filter) Eval(ev Event) (bool, error) {
+func (f *filter) eval(ev Event) (bool, error) {
 	if f == nil {
 		return true, nil
 	}

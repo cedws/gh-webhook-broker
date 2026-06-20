@@ -7,20 +7,20 @@ import (
 )
 
 func TestCompileFilter_Empty(t *testing.T) {
-	f, err := CompileFilter("")
+	f, err := compileFilter("")
 	assert.NoError(t, err)
 	assert.True(t, f == nil)
 }
 
 func TestFilter_Eval_NoFilter(t *testing.T) {
-	var f *Filter
-	ok, err := f.Eval(Event{Type: "push"})
+	var f *filter
+	ok, err := f.eval(Event{Type: "push"})
 	assert.NoError(t, err)
 	assert.True(t, ok)
 }
 
 func TestFilter_Eval_ActionEquality(t *testing.T) {
-	f, err := CompileFilter(`event.action == "opened"`)
+	f, err := compileFilter(`event.action == "opened"`)
 	assert.NoError(t, err)
 
 	cases := []struct {
@@ -34,7 +34,7 @@ func TestFilter_Eval_ActionEquality(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := f.Eval(tc.ev)
+			got, err := f.eval(tc.ev)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -42,7 +42,7 @@ func TestFilter_Eval_ActionEquality(t *testing.T) {
 }
 
 func TestFilter_Eval_TypeAndNested(t *testing.T) {
-	f, err := CompileFilter(`type == "pull_request" && event.action == "opened" && !event.pull_request.draft`)
+	f, err := compileFilter(`type == "pull_request" && event.action == "opened" && !event.pull_request.draft`)
 	assert.NoError(t, err)
 
 	cases := []struct {
@@ -68,7 +68,7 @@ func TestFilter_Eval_TypeAndNested(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := f.Eval(tc.ev)
+			got, err := f.eval(tc.ev)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -76,34 +76,34 @@ func TestFilter_Eval_TypeAndNested(t *testing.T) {
 }
 
 func TestFilter_Eval_Scope(t *testing.T) {
-	f, err := CompileFilter(`repo == "cedws/microrunner"`)
+	f, err := compileFilter(`repo == "cedws/microrunner"`)
 	assert.NoError(t, err)
 
 	ev := Event{Type: "push", Scope: RepoScope("cedws", "microrunner")}
-	got, err := f.Eval(ev)
+	got, err := f.eval(ev)
 	assert.NoError(t, err)
 	assert.True(t, got)
 }
 
 func TestFilter_Eval_OrgScope(t *testing.T) {
-	f, err := CompileFilter(`scope == "orgs/acme"`)
+	f, err := compileFilter(`scope == "orgs/acme"`)
 	assert.NoError(t, err)
 
 	ev := Event{Type: "push", Scope: OrgScope("acme")}
-	got, err := f.Eval(ev)
+	got, err := f.eval(ev)
 	assert.NoError(t, err)
 	assert.True(t, got)
 }
 
 func TestCompileFilter_Invalid(t *testing.T) {
-	_, err := CompileFilter(`event.action ==`)
+	_, err := compileFilter(`event.action ==`)
 	assert.Error(t, err)
 }
 
 func TestCompileFilter_NonBool(t *testing.T) {
-	f, err := CompileFilter(`event.action`)
+	f, err := compileFilter(`event.action`)
 	assert.NoError(t, err)
 
-	_, err = f.Eval(Event{Type: "issues", Payload: []byte(`{"action":"opened"}`)})
+	_, err = f.eval(Event{Type: "issues", Payload: []byte(`{"action":"opened"}`)})
 	assert.Error(t, err)
 }

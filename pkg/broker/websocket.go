@@ -23,7 +23,7 @@ type httpEventAck struct {
 	Body   []byte      `json:"Body"`
 }
 
-type WebsocketReader struct {
+type websocketReader struct {
 	scope   Scope
 	token   string
 	wsURL   string
@@ -31,8 +31,8 @@ type WebsocketReader struct {
 	onEvent func(Event)
 }
 
-func NewWebsocketReader(scope Scope, token, wsURL string, log *slog.Logger, onEvent func(Event)) *WebsocketReader {
-	return &WebsocketReader{
+func newWebsocketReader(scope Scope, token, wsURL string, log *slog.Logger, onEvent func(Event)) *websocketReader {
+	return &websocketReader{
 		scope:   scope,
 		token:   token,
 		wsURL:   wsURL,
@@ -41,7 +41,7 @@ func NewWebsocketReader(scope Scope, token, wsURL string, log *slog.Logger, onEv
 	}
 }
 
-func (r *WebsocketReader) Run(ctx context.Context) error {
+func (r *websocketReader) Run(ctx context.Context) error {
 	const maxRetries = 3
 	backoff := 2 * time.Second
 
@@ -81,7 +81,7 @@ func (r *WebsocketReader) Run(ctx context.Context) error {
 	return fmt.Errorf("websocket reader for %s exhausted retries", r.scope)
 }
 
-func (r *WebsocketReader) runOnce(ctx context.Context) error {
+func (r *websocketReader) runOnce(ctx context.Context) error {
 	conn, err := r.dial(ctx)
 	if err != nil {
 		return fmt.Errorf("dialing websocket: %w", err)
@@ -116,7 +116,7 @@ func (r *WebsocketReader) runOnce(ctx context.Context) error {
 	}
 }
 
-func (r *WebsocketReader) dial(ctx context.Context) (*websocket.Conn, error) {
+func (r *websocketReader) dial(ctx context.Context) (*websocket.Conn, error) {
 	conn, resp, err := websocket.Dial(ctx, r.wsURL, &websocket.DialOptions{
 		HTTPHeader: http.Header{
 			"Authorization": []string{r.token},

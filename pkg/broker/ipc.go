@@ -30,14 +30,14 @@ func DefaultSocketPath() (string, error) {
 	return filepath.Join(home, ".local", "run", "gh-webhook-broker.sock"), nil
 }
 
-type IPCServer struct {
+type ipcServer struct {
 	addr     string
 	listener net.Listener
-	registry *Registry
+	registry *registry
 	log      *slog.Logger
 }
 
-func NewUnixIPCServer(path string, registry *Registry, log *slog.Logger) (*IPCServer, error) {
+func newUnixIPCServer(path string, registry *registry, log *slog.Logger) (*ipcServer, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("creating socket directory: %w", err)
 	}
@@ -52,7 +52,7 @@ func NewUnixIPCServer(path string, registry *Registry, log *slog.Logger) (*IPCSe
 		return nil, fmt.Errorf("chmod socket: %w", err)
 	}
 
-	return &IPCServer{
+	return &ipcServer{
 		addr:     "unix://" + path,
 		listener: l,
 		registry: registry,
@@ -60,13 +60,13 @@ func NewUnixIPCServer(path string, registry *Registry, log *slog.Logger) (*IPCSe
 	}, nil
 }
 
-func NewTCPIPCServer(addr string, registry *Registry, log *slog.Logger) (*IPCServer, error) {
+func newTCPIPCServer(addr string, registry *registry, log *slog.Logger) (*ipcServer, error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("listening on %s: %w", addr, err)
 	}
 
-	return &IPCServer{
+	return &ipcServer{
 		addr:     "tcp://" + l.Addr().String(),
 		listener: l,
 		registry: registry,
@@ -74,9 +74,9 @@ func NewTCPIPCServer(addr string, registry *Registry, log *slog.Logger) (*IPCSer
 	}, nil
 }
 
-func (s *IPCServer) Addr() string { return s.addr }
+func (s *ipcServer) addrString() string { return s.addr }
 
-func (s *IPCServer) Serve(ctx context.Context) error {
+func (s *ipcServer) serve(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		s.listener.Close()
@@ -95,7 +95,7 @@ func (s *IPCServer) Serve(ctx context.Context) error {
 	}
 }
 
-func (s *IPCServer) Close() error {
+func (s *ipcServer) close() error {
 	if after, ok := strings.CutPrefix(s.addr, "unix://"); ok {
 		_ = os.Remove(after)
 	}
@@ -143,7 +143,7 @@ func isStaleSocketError(err error) bool {
 	return errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ENOENT)
 }
 
-func (s *IPCServer) handleConn(ctx context.Context, conn net.Conn) {
+func (s *ipcServer) handleConn(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 
 	br := bufio.NewReader(conn)
@@ -154,19 +154,19 @@ func (s *IPCServer) handleConn(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	sub, err := NewSubscriber(*msg, conn, s.log.With("subscriber", conn.RemoteAddr()))
+	sub, err := newSubscriber(*msg, conn, s.log.With("subscriber", conn.RemoteAddr()))
 	if err != nil {
 		s.writeError(conn, "error creating subscriber: "+err.Error())
 		return
 	}
 
-	if err := s.registry.AddSubscriber(ctx, sub); err != nil {
+	if err := s.registry.addSubscriber(ctx, sub); err != nil {
 		s.writeError(conn, "error subscribing: "+err.Error())
 		return
 	}
 
 	defer func() {
-		_ = s.registry.RemoveSubscriber(context.Background(), sub)
+		_ = s.registry.removeSubscriber(context.Background(), sub)
 	}()
 
 	go func() {
@@ -177,13 +177,13 @@ func (s *IPCServer) handleConn(ctx context.Context, conn net.Conn) {
 	_, _ = io.Copy(io.Discard, conn)
 }
 
-func (s *IPCServer) readSubscribeRequest(br *bufio.Reader) (*SubscribeRequest, error) {
+func (s *ipcServer) readSubscribeRequest(br *bufio.Reader) (*SubscribeRequest, error) {
 	line, err := readLineLimited(br, maxSubscribeRequestBytes)
 	if err != nil {
 		return nil, fmt.Errorf("error reading subscribe request: %w", err)
 	}
 
-	var msg Message
+	var msg message
 	if err := json.Unmarshal([]byte(strings.TrimRight(line, "\n")), &msg); err != nil {
 		return nil, fmt.Errorf("error parsing subscribe request: %w", err)
 	}
@@ -210,8 +210,8 @@ func readLineLimited(br *bufio.Reader, limit int) (string, error) {
 	return "", fmt.Errorf("line exceeds %d bytes", limit)
 }
 
-func (s *IPCServer) writeError(conn net.Conn, msg string) {
-	m := Message{Error: msg}
+func (s *ipcServer) writeError(conn net.Conn, msg string) {
+	m := message{Error: msg}
 	data, _ := json.Marshal(&m)
 	data = append(data, '\n')
 

@@ -44,7 +44,7 @@ type SubscribeRequest struct {
 	Match  string   `json:"match,omitempty"`
 }
 
-type Message struct {
+type message struct {
 	Subscribe *SubscribeRequest `json:"subscribe,omitempty"`
 	Event     *Event            `json:"event,omitempty"`
 	Error     string            `json:"error,omitempty"`

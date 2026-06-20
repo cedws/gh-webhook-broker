@@ -45,7 +45,7 @@ func parseAddr(addr string) (network, target string) {
 }
 
 func (c *Client) Subscribe(req SubscribeRequest) error {
-	msg := Message{Subscribe: &req}
+	msg := message{Subscribe: &req}
 
 	data, err := json.Marshal(&msg)
 	if err != nil {
@@ -78,7 +78,7 @@ func (c *Client) readEvent() readResult {
 		return readResult{nil, err}
 	}
 
-	var msg Message
+	var msg message
 	if err := json.Unmarshal([]byte(strings.TrimRight(line, "\n")), &msg); err != nil {
 		return readResult{nil, fmt.Errorf("parsing message: %w", err)}
 	}

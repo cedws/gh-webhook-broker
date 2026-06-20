@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -14,12 +15,12 @@ import (
 	"github.com/cedws/gh-webhook-broker/pkg/version"
 )
 
-type Mode string
+type mode string
 
 const (
-	ModeDaemon    Mode = "daemon"
-	ModeWait      Mode = "wait"
-	ModeSubscribe Mode = "subscribe"
+	daemonMode    mode = "daemon"
+	waitMode      mode = "wait"
+	subscribeMode mode = "subscribe"
 )
 
 type cli struct {
@@ -77,7 +78,7 @@ func (c *subscribeCmd) Run(global *cli) error {
 }
 
 func (c *versionCmd) Run(global *cli) error {
-	fmt.Printf("gh-webhook-broker %s (commit: %s, built: %s)\n", version.Version(), version.Commit(), version.Date())
+	fmt.Println(version.String())
 	return nil
 }
 
@@ -178,11 +179,19 @@ func streamEvents(client *broker.Client, mode clientMode) error {
 	}
 }
 
-func Execute(mode Mode) {
+func Execute() {
 	var c cli
 
+	mode := daemonMode
+	switch filepath.Base(os.Args[0]) {
+	case "gh-webhook-wait":
+		mode = waitMode
+	case "gh-webhook-subscribe":
+		mode = subscribeMode
+	}
+
 	args := os.Args[1:]
-	if mode == ModeWait || mode == ModeSubscribe {
+	if mode == waitMode || mode == subscribeMode {
 		args = append([]string{string(mode)}, args...)
 	}
 

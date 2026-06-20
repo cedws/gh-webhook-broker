@@ -10,22 +10,22 @@ import (
 	"sync"
 )
 
-type Subscriber struct {
+type subscriber struct {
 	events map[string]struct{}
 	scopes []Scope
-	filter *Filter
+	filter *filter
 	w      io.Writer
 	mu     sync.Mutex
 	log    *slog.Logger
 }
 
-func NewSubscriber(req SubscribeRequest, w io.Writer, log *slog.Logger) (*Subscriber, error) {
-	f, err := CompileFilter(req.Match)
+func newSubscriber(req SubscribeRequest, w io.Writer, log *slog.Logger) (*subscriber, error) {
+	f, err := compileFilter(req.Match)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Subscriber{
+	return &subscriber{
 		events: eventSet(req.Events),
 		scopes: req.Scopes,
 		filter: f,
@@ -34,7 +34,7 @@ func NewSubscriber(req SubscribeRequest, w io.Writer, log *slog.Logger) (*Subscr
 	}, nil
 }
 
-func (s *Subscriber) Wants(eventType string) bool {
+func (s *subscriber) wants(eventType string) bool {
 	if len(s.events) == 0 {
 		return true
 	}
@@ -47,7 +47,7 @@ func (s *Subscriber) Wants(eventType string) bool {
 	return ok
 }
 
-func (s *Subscriber) MatchScope(ev Event) bool {
+func (s *subscriber) matchScope(ev Event) bool {
 	if len(s.scopes) == 0 {
 		return true
 	}
@@ -55,12 +55,12 @@ func (s *Subscriber) MatchScope(ev Event) bool {
 	return slices.Contains(s.scopes, ev.Scope)
 }
 
-func (s *Subscriber) Deliver(ev Event) error {
-	if !s.MatchScope(ev) || !s.Wants(ev.Type) {
+func (s *subscriber) deliver(ev Event) error {
+	if !s.matchScope(ev) || !s.wants(ev.Type) {
 		return nil
 	}
 
-	ok, err := s.filter.Eval(ev)
+	ok, err := s.filter.eval(ev)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (s *Subscriber) Deliver(ev Event) error {
 		return nil
 	}
 
-	msg := Message{Event: &ev}
+	msg := message{Event: &ev}
 	data, err := json.Marshal(&msg)
 	if err != nil {
 		return fmt.Errorf("marshalling event: %w", err)
@@ -83,7 +83,7 @@ func (s *Subscriber) Deliver(ev Event) error {
 	return err
 }
 
-func (s *Subscriber) DesiredEvents() []string {
+func (s *subscriber) desiredEvents() []string {
 	if _, ok := s.events["*"]; ok {
 		return []string{"*"}
 	}
@@ -91,4 +91,4 @@ func (s *Subscriber) DesiredEvents() []string {
 	return slices.Sorted(maps.Keys(s.events))
 }
 
-func (s *Subscriber) Scopes() []Scope { return s.scopes }
+func (s *subscriber) scopesFor() []Scope { return s.scopes }

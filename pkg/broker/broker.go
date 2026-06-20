@@ -44,12 +44,12 @@ func Run(ctx context.Context, config Config) error {
 		config.Addrs = []string{p}
 	}
 
-	gh, err := NewGitHubClient(config.GitHubHost, token)
+	gh, err := newGitHubClient(config.GitHubHost, token)
 	if err != nil {
 		return err
 	}
 
-	registry := NewRegistry(gh, config.Secret, log)
+	registry := newRegistry(gh, config.Secret, log)
 
 	servers, err := startServers(config.Addrs, registry, log)
 	if err != nil {
@@ -57,7 +57,7 @@ func Run(ctx context.Context, config Config) error {
 	}
 	defer func() {
 		for _, s := range servers {
-			_ = s.Close()
+			_ = s.close()
 		}
 	}()
 
@@ -68,7 +68,7 @@ func Run(ctx context.Context, config Config) error {
 
 	errCh := make(chan error, len(servers))
 	for _, s := range servers {
-		go func(s *IPCServer) { errCh <- s.Serve(ctx) }(s)
+		go func(s *ipcServer) { errCh <- s.serve(ctx) }(s)
 	}
 
 	select {
@@ -80,8 +80,8 @@ func Run(ctx context.Context, config Config) error {
 	}
 }
 
-func startServers(addrs []string, registry *Registry, log *slog.Logger) ([]*IPCServer, error) {
-	var servers []*IPCServer
+func startServers(addrs []string, registry *registry, log *slog.Logger) ([]*ipcServer, error) {
+	var servers []*ipcServer
 
 	for _, addr := range addrs {
 		s, err := newServer(addr, registry, log)
@@ -98,23 +98,23 @@ func startServers(addrs []string, registry *Registry, log *slog.Logger) ([]*IPCS
 	return servers, nil
 }
 
-func newServer(addr string, registry *Registry, log *slog.Logger) (*IPCServer, error) {
+func newServer(addr string, registry *registry, log *slog.Logger) (*ipcServer, error) {
 	network, target := parseAddr(addr)
 
 	switch network {
 	case "tcp":
-		return NewTCPIPCServer(target, registry, log)
+		return newTCPIPCServer(target, registry, log)
 	case "unix":
-		return NewUnixIPCServer(target, registry, log)
+		return newUnixIPCServer(target, registry, log)
 	default:
 		return nil, fmt.Errorf("unsupported scheme %q", network)
 	}
 }
 
-func serverAddrs(servers []*IPCServer) []string {
+func serverAddrs(servers []*ipcServer) []string {
 	addrs := make([]string, len(servers))
 	for i, s := range servers {
-		addrs[i] = s.Addr()
+		addrs[i] = s.addrString()
 	}
 	return addrs
 }

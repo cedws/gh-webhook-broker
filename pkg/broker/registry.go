@@ -16,7 +16,7 @@ import (
 
 type managedHook struct {
 	scope     Scope
-	hook      Hook
+	hook      hook
 	cancel    context.CancelFunc
 	log       *slog.Logger
 	mu        sync.Mutex
@@ -26,14 +26,14 @@ type managedHook struct {
 }
 
 type githubHooksClient interface {
-	CreateHook(Scope, []string, string) (Hook, error)
-	UpdateHook(Scope, int, []string, bool) (Hook, error)
+	CreateHook(Scope, []string, string) (hook, error)
+	UpdateHook(Scope, int, []string, bool) (hook, error)
 	DeleteHook(Scope, int) error
-	Activate(Scope, int) (Hook, error)
-	Token() string
+	Activate(Scope, int) (hook, error)
+	token() string
 }
 
-type Registry struct {
+type registry struct {
 	gh     githubHooksClient
 	secret string
 	log    *slog.Logger
@@ -42,25 +42,25 @@ type Registry struct {
 	hooks map[Scope]*managedHook
 
 	subsMu sync.RWMutex
-	subs   map[*Subscriber]struct{}
+	subs   map[*subscriber]struct{}
 }
 
-func NewRegistry(gh githubHooksClient, secret string, log *slog.Logger) *Registry {
-	return &Registry{
+func newRegistry(gh githubHooksClient, secret string, log *slog.Logger) *registry {
+	return &registry{
 		gh:     gh,
 		secret: secret,
 		log:    log,
 		hooks:  make(map[Scope]*managedHook),
-		subs:   make(map[*Subscriber]struct{}),
+		subs:   make(map[*subscriber]struct{}),
 	}
 }
 
-func (r *Registry) AddSubscriber(ctx context.Context, sub *Subscriber) error {
+func (r *registry) addSubscriber(ctx context.Context, sub *subscriber) error {
 	r.subsMu.Lock()
 	r.subs[sub] = struct{}{}
 	r.subsMu.Unlock()
 
-	if err := r.reconcileAll(ctx, sub.Scopes()); err != nil {
+	if err := r.reconcileAll(ctx, sub.scopesFor()); err != nil {
 		r.subsMu.Lock()
 		delete(r.subs, sub)
 		r.subsMu.Unlock()
@@ -70,15 +70,15 @@ func (r *Registry) AddSubscriber(ctx context.Context, sub *Subscriber) error {
 	return nil
 }
 
-func (r *Registry) RemoveSubscriber(ctx context.Context, sub *Subscriber) error {
+func (r *registry) removeSubscriber(ctx context.Context, sub *subscriber) error {
 	r.subsMu.Lock()
 	delete(r.subs, sub)
 	r.subsMu.Unlock()
 
-	return r.reconcileAll(ctx, sub.Scopes())
+	return r.reconcileAll(ctx, sub.scopesFor())
 }
 
-func (r *Registry) reconcileAll(ctx context.Context, scopes []Scope) error {
+func (r *registry) reconcileAll(ctx context.Context, scopes []Scope) error {
 	for i := range scopes {
 		if err := r.reconcile(ctx, &scopes[i]); err != nil {
 			return err
@@ -87,13 +87,13 @@ func (r *Registry) reconcileAll(ctx context.Context, scopes []Scope) error {
 	return nil
 }
 
-func (r *Registry) subscribersFor(scope *Scope) []*Subscriber {
+func (r *registry) subscribersFor(scope *Scope) []*subscriber {
 	r.subsMu.RLock()
 	defer r.subsMu.RUnlock()
 
-	var out []*Subscriber
+	var out []*subscriber
 	for sub := range r.subs {
-		subScopes := sub.Scopes()
+		subScopes := sub.scopesFor()
 		if scope == nil || len(subScopes) == 0 {
 			out = append(out, sub)
 			continue
@@ -105,11 +105,11 @@ func (r *Registry) subscribersFor(scope *Scope) []*Subscriber {
 	return out
 }
 
-func (r *Registry) desiredEvents(scope *Scope) map[string]struct{} {
+func (r *registry) desiredEvents(scope *Scope) map[string]struct{} {
 	desired := make(map[string]struct{})
 
 	for _, sub := range r.subscribersFor(scope) {
-		for _, e := range sub.DesiredEvents() {
+		for _, e := range sub.desiredEvents() {
 			desired[e] = struct{}{}
 		}
 	}
@@ -125,7 +125,7 @@ func unionEvents(m map[string]struct{}) []string {
 	return slices.Sorted(maps.Keys(m))
 }
 
-func (r *Registry) reconcile(ctx context.Context, scope *Scope) error {
+func (r *registry) reconcile(ctx context.Context, scope *Scope) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -194,22 +194,22 @@ func (r *Registry) reconcile(ctx context.Context, scope *Scope) error {
 	return nil
 }
 
-func (r *Registry) createHook(scope Scope, events []string) (Hook, error) {
-	hook, err := r.gh.CreateHook(scope, events, r.secret)
+func (r *registry) createHook(scope Scope, events []string) (hook, error) {
+	h, err := r.gh.CreateHook(scope, events, r.secret)
 	if err != nil {
-		return Hook{}, err
+		return hook{}, err
 	}
 
-	hook, err = r.gh.Activate(scope, hook.ID)
+	h, err = r.gh.Activate(scope, h.ID)
 	if err != nil {
-		_ = r.gh.DeleteHook(scope, hook.ID)
-		return Hook{}, err
+		_ = r.gh.DeleteHook(scope, h.ID)
+		return hook{}, err
 	}
 
-	hook.Active = true
-	r.log.Info("created dev webhook", "scope", scope, "id", hook.ID)
+	h.Active = true
+	r.log.Info("created dev webhook", "scope", scope, "id", h.ID)
 
-	return hook, nil
+	return h, nil
 }
 
 func isNotFound(err error) bool {
@@ -217,7 +217,7 @@ func isNotFound(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
-func (r *Registry) teardown(mh *managedHook) error {
+func (r *registry) teardown(mh *managedHook) error {
 	if mh.cancel != nil {
 		mh.cancel()
 	}
@@ -237,15 +237,15 @@ func (r *Registry) teardown(mh *managedHook) error {
 	return nil
 }
 
-func (r *Registry) Dispatch(ev Event) {
+func (r *registry) dispatch(ev Event) {
 	for _, sub := range r.subscribersFor(&ev.Scope) {
-		if err := sub.Deliver(ev); err != nil {
+		if err := sub.deliver(ev); err != nil {
 			r.log.Warn("error delivering event to subscriber", "error", err)
 		}
 	}
 }
 
-func (r *Registry) Shutdown() error {
+func (r *registry) Shutdown() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -274,8 +274,8 @@ func (r *Registry) Shutdown() error {
 	return g.Wait()
 }
 
-func (mh *managedHook) start(ctx context.Context, r *Registry) error {
-	ws := NewWebsocketReader(mh.scope, r.gh.Token(), mh.hook.WsURL, mh.log, r.Dispatch)
+func (mh *managedHook) start(ctx context.Context, r *registry) error {
+	ws := newWebsocketReader(mh.scope, r.gh.token(), mh.hook.WsURL, mh.log, r.dispatch)
 
 	if mh.cancel != nil {
 		mh.cancel()
@@ -298,7 +298,7 @@ func (mh *managedHook) start(ctx context.Context, r *Registry) error {
 	return nil
 }
 
-func (r *Registry) recoverHook(ctx context.Context, scope Scope) {
+func (r *registry) recoverHook(ctx context.Context, scope Scope) {
 	if ctx.Err() != nil {
 		return
 	}

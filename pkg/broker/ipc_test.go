@@ -14,13 +14,13 @@ import (
 func TestNewIPCServer_RejectsActiveSocket(t *testing.T) {
 	path := testSocketPath(t)
 
-	server, err := NewUnixIPCServer(path, &Registry{}, testLogger())
+	server, err := newUnixIPCServer(path, &registry{}, testLogger())
 	assert.NoError(t, err)
 	t.Cleanup(func() {
-		assert.NoError(t, server.Close())
+		assert.NoError(t, server.close())
 	})
 
-	other, err := NewUnixIPCServer(path, &Registry{}, testLogger())
+	other, err := newUnixIPCServer(path, &registry{}, testLogger())
 	assert.Error(t, err)
 	assert.True(t, other == nil)
 }
@@ -32,13 +32,13 @@ func TestNewIPCServer_ReusesStaleSocket(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, listener.Close())
 
-	server, err := NewUnixIPCServer(path, &Registry{}, testLogger())
+	server, err := newUnixIPCServer(path, &registry{}, testLogger())
 	assert.NoError(t, err)
-	assert.NoError(t, server.Close())
+	assert.NoError(t, server.close())
 }
 
 func TestReadSubscribeRequest_RejectsOversizedLine(t *testing.T) {
-	server := &IPCServer{}
+	server := &ipcServer{}
 	body := strings.Repeat("a", maxSubscribeRequestBytes+1) + "\n"
 
 	_, err := server.readSubscribeRequest(bufio.NewReader(strings.NewReader(body)))
